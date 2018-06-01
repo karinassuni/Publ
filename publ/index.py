@@ -36,7 +36,7 @@ def in_progress():
     return queue_length() > 0
 
 
-def scan_file(fullpath, relpath, assign_id):
+def scan_file(fullpath, relpath, assign_id, config):
     """ Scan a file for the index
 
     fullpath -- The full path to the file
@@ -57,7 +57,7 @@ def scan_file(fullpath, relpath, assign_id):
         try:
             if ext in ENTRY_TYPES:
                 logger.info("Scanning entry: %s", fullpath)
-                return entry.scan_file(fullpath, relpath, assign_id)
+                return entry.scan_file(fullpath, relpath, assign_id, config)
 
             if ext in CATEGORY_TYPES:
                 logger.info("Scanning meta info: %s", fullpath)
@@ -71,7 +71,7 @@ def scan_file(fullpath, relpath, assign_id):
     result = do_scan()
     if result is False and not assign_id:
         logger.info("Scheduling fixup for %s", fullpath)
-        THREAD_POOL.submit(scan_file, fullpath, relpath, True)
+        THREAD_POOL.submit(scan_file, fullpath, relpath, True, config)
     elif result:
         set_fingerprint(fullpath)
 
@@ -102,14 +102,14 @@ def set_fingerprint(fullpath, fingerprint=None):
 class IndexWatchdog(watchdog.events.PatternMatchingEventHandler):
     """ Watchdog handler """
 
-    def __init__(self, content_dir):
+    def __init__(self, config):
         super().__init__(ignore_directories=True)
-        self.content_dir = content_dir
+        self.config = config
 
     def update_file(self, fullpath):
         """ Update a file """
-        relpath = os.path.relpath(fullpath, self.content_dir)
-        THREAD_POOL.submit(scan_file, fullpath, relpath, False)
+        relpath = os.path.relpath(fullpath, self.config.content_folder)
+        THREAD_POOL.submit(scan_file, fullpath, relpath, False, self.config)
 
     def on_created(self, event):
         """ on_created handler """
@@ -136,28 +136,28 @@ class IndexWatchdog(watchdog.events.PatternMatchingEventHandler):
             self.update_file(event.src_path)
 
 
-def background_scan(content_dir):
+def background_scan(config):
     """ Start background scanning a directory for changes """
     observer = watchdog.observers.Observer()
-    observer.schedule(IndexWatchdog(content_dir),
-                      content_dir, recursive=True)
-    logging.info("Watching %s for changes", content_dir)
+    observer.schedule(IndexWatchdog(config),
+                      config.content_folder, recursive=True)
+    logging.info("Watching %s for changes", config.content_folder)
     observer.start()
 
 
-def scan_index(content_dir):
+def scan_index(config):
     """ Scan all files in a content directory """
 
     def scan_directory(root, files):
         """ Helper function to scan a single directory """
         for file in files:
             fullpath = os.path.join(root, file)
-            relpath = os.path.relpath(fullpath, content_dir)
+            relpath = os.path.relpath(fullpath, config.content_folder)
 
             fingerprint = utils.file_fingerprint(fullpath)
             last_fingerprint = get_last_fingerprint(fullpath)
             if fingerprint != last_fingerprint:
-                scan_file(fullpath, relpath, False)
+                scan_file(fullpath, relpath, False, config)
 
-    for root, _, files in os.walk(content_dir, followlinks=True):
+    for root, _, files in os.walk(config.content_folder, followlinks=True):
         THREAD_POOL.submit(scan_directory, root, files)

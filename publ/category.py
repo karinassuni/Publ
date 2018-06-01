@@ -18,7 +18,6 @@ from . import entry  # pylint: disable=cyclic-import
 from . import queries
 from . import path_alias
 from . import markdown
-from . import config
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -93,7 +92,7 @@ class Category:
     @cached_property
     def image_search_path(self):
         """ Get the image search path for the category """
-        return [os.path.join(config.content_folder, self.path)]
+        return [os.path.join(flask.current_app.publ_config.content_folder, self.path)]
 
     @cached_property
     def breadcrumb(self):

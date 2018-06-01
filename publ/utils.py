@@ -12,8 +12,6 @@ import arrow
 import flask
 import slugify
 
-from . import config
-
 
 class CallableProxy:
     """ Wrapper class to make args possible on properties """
@@ -103,16 +101,17 @@ def parse_date(datestr):
         datestr -- A date specification, in the format of YYYY-MM-DD (dashes optional)
     """
 
+    tzinfo = flask.current_app.publ_config.timezone
     match = re.match(
         r'([0-9]{4})(-?([0-9]{1,2}))?(-?([0-9]{1,2}))?(_w)?$', datestr)
     if not match:
         return (arrow.get(datestr,
-                          tzinfo=config.timezone).replace(tzinfo=config.timezone),
+                          tzinfo=tzinfo).replace(tzinfo=tzinfo),
                 'day', 'YYYY-MM-DD')
 
     year, month, day, week = match.group(1, 3, 5, 6)
     start = arrow.Arrow(year=int(year), month=int(
-        month or 1), day=int(day or 1), tzinfo=config.timezone)
+        month or 1), day=int(day or 1), tzinfo=tzinfo)
 
     if week:
         return start.span('week')[0], 'week', WEEK_FORMAT

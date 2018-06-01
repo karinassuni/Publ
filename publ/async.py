@@ -9,13 +9,12 @@ import random
 import flask
 import PIL.Image
 
-from . import config
-
 
 def image(filename):
     """ Asynchronously fetch an image """
 
-    if os.path.isfile(os.path.join(config.static_folder, filename)):
+    if os.path.isfile(os.path.join(flask.current_app.publ_config.static_folder,
+                                   filename)):
         return flask.redirect(flask.url_for('static', filename=filename))
 
     retry_count = int(flask.request.args.get('retry_count', 0))

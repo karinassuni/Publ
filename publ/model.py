@@ -11,8 +11,6 @@ import peewee
 from peewee import Proxy, Model, IntegerField, DateTimeField, CharField
 import playhouse.db_url
 
-from . import config
-
 DATABASE_PROXY = Proxy()
 lock = threading.Lock()  # pylint: disable=invalid-name
 
@@ -129,7 +127,7 @@ ALL_TYPES = [
 ]
 
 
-def setup():
+def setup(config):
     """ Set up the database """
     database = playhouse.db_url.connect(config.database)
     DATABASE_PROXY.initialize(database)

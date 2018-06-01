@@ -42,6 +42,12 @@
             ],
             "version": "==0.12.1"
         },
+        "attrdict": {
+            "hashes": [
+                "sha256:86aeb6d3809e0344409f8148d7cac9eabce5f0b577c160b5e90d10df3f8d2ad3"
+            ],
+            "version": "==2.0.0"
+        },
         "awesome-slugify": {
             "hashes": [
                 "sha256:bbdec3fa2187917473a2efad092b57f7125a55f841a7cf6a1773178d32ccfd71"
@@ -138,9 +144,9 @@
         },
         "peewee": {
             "hashes": [
-                "sha256:0b9527ec3c09388f739c9dc6b465a7ea6e3cc6906f4a294ecd43467cdbb48272"
+                "sha256:7bd76cf2f7fdda898ed5235774f6edd8104a712ecad9883ba91dfef8ad85d3e3"
             ],
-            "version": "==3.3.4"
+            "version": "==3.5.0"
         },
         "pillow": {
             "hashes": [

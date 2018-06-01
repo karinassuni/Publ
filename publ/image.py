@@ -18,7 +18,6 @@ import PIL.Image
 from werkzeug.utils import cached_property
 import flask
 
-from . import config
 from . import model, utils
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -186,6 +185,7 @@ class LocalImage(Image):
             out_args['quality'] = kwargs['quality']
 
         # Build the output filename
+        config = flask.current_app.publ_config
         out_basename = '_'.join([str(s) for s in out_spec]) + ext
         out_rel_path = os.path.join(
             config.image_output_subdir,
@@ -582,7 +582,7 @@ def get_image(path, search_path):
 
     if os.path.isabs(path):
         file_path = utils.find_file(os.path.relpath(
-            path, '/'), config.content_folder)
+            path, '/'), flask.current_app.publ_config.content_folder)
     else:
         file_path = utils.find_file(path, search_path)
     if not file_path:

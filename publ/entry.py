@@ -17,7 +17,6 @@ import arrow
 import flask
 from werkzeug.utils import cached_property
 
-from . import config
 from . import model
 from . import queries
 from . import path_alias
@@ -215,7 +214,7 @@ class Entry:
     @cached_property
     def last_modified(self):
         """ Get the date of last file modification """
-        return arrow.get(os.stat(self._record.file_path).st_mtime).to(config.timezone)
+        return arrow.get(os.stat(self._record.file_path).st_mtime)
 
     def _get_markup(self, text, is_markdown, **kwargs):
         """ get the rendered markup for an entry
@@ -377,7 +376,7 @@ def save_file(fullpath, entry):
     shutil.move(tmpfile, fullpath)
 
 
-def scan_file(fullpath, relpath, assign_id):
+def scan_file(fullpath, relpath, assign_id, config):
     """ scan a file and put it into the index """
 
     # Since a file has changed, the lrucache is invalid.

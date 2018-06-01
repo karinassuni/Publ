@@ -8,10 +8,9 @@ import logging
 import base64
 
 import flask
-from flask import request, redirect, render_template, url_for
+from flask import request, redirect, render_template, url_for, current_app
 import werkzeug.exceptions as http_error
 
-from . import config
 from . import path_alias
 from . import model
 from . import image
@@ -62,7 +61,8 @@ def map_template(category, template_list):
         while path != None:
             for extension in ['', '.html', '.htm', '.xml', '.json']:
                 candidate = os.path.join(path, template + extension)
-                file_path = os.path.join(config.template_folder, candidate)
+                file_path = os.path.join(
+                    current_app.publ_config.template_folder, candidate)
                 if os.path.isfile(file_path):
                     return Template(template, candidate, file_path)
             parent = os.path.dirname(path)
@@ -107,7 +107,7 @@ def image_function(template=None, entry=None, category=None):
         path += category.image_search_path
     if template is not None:
         path.append(os.path.join(
-            config.content_folder,
+            current_app.publ_config.content_folder,
             os.path.dirname(template.filename)))
 
     return lambda filename: image.get_image(filename, path)
