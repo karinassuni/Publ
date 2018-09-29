@@ -26,6 +26,7 @@ from pony import orm
 
 from . import config
 from . import model, utils
+from . import background
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -170,17 +171,6 @@ class LocalImage(Image):
     """ The basic Image class, which knows about the base version and how to
     generate renditions from it """
 
-    _thread_pool = None
-
-    @staticmethod
-    def thread_pool():
-        """ Get the rendition threadpool """
-        if not LocalImage._thread_pool:
-            logger.info("Starting LocalImage threadpool")
-            LocalImage._thread_pool = concurrent.futures.ThreadPoolExecutor(
-                thread_name_prefix="Renderer")
-        return LocalImage._thread_pool
-
     def __init__(self, record, search_path):
         """ Get the base image from an index record """
         super().__init__(search_path)
@@ -262,7 +252,7 @@ class LocalImage(Image):
             os.utime(out_fullpath)
             return utils.static_url(out_rel_path, kwargs.get('absolute')), size
 
-        LocalImage.thread_pool().submit(
+        background.submit(
             self._render, out_fullpath, size, box, flatten, kwargs, out_args)
 
         return flask.url_for('async', filename=out_rel_path, _external=kwargs.get('absolute')), size
@@ -535,7 +525,7 @@ class LocalImage(Image):
     @staticmethod
     def clean_cache(max_age):
         """ Clean the rendition cache of files older than max_age seconds """
-        LocalImage.thread_pool().submit(LocalImage._clean_cache, max_age)
+        background.submit(LocalImage._clean_cache, max_age)
 
     @staticmethod
     def _clean_cache(max_age):
