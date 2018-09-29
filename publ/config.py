@@ -19,6 +19,7 @@ image_output_subdir = '_img'
 index_rescan_interval = 7200
 image_cache_interval = 3600
 image_cache_age = 86400 * 7  # one week
+entry_publish_interval = 60
 timezone = tz.tzlocal()
 cache = {}
 

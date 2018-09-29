@@ -16,7 +16,7 @@ db = orm.Database()  # pylint: disable=invalid-name
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 # schema version; bump this number if it changes
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class GlobalConfig(db.Entity):
@@ -62,6 +62,8 @@ class Entry(db.Entity):
     title = orm.Optional(str)
 
     aliases = orm.Set("PathAlias")
+    pings = orm.Set("WebMentionSent")
+    queued = orm.Optional(bool, index=True)
 
     orm.composite_index(category, entry_type, utc_date)
     orm.composite_index(category, entry_type, local_date)
@@ -94,6 +96,17 @@ class Image(db.Entity):
     height = orm.Required(int)
     transparent = orm.Required(bool)
     fingerprint = orm.Required(str)
+
+
+class WebMentionSent(db.Entity):
+    """ Tracks outgoing webmentions """
+    entry = orm.Required(Entry)
+    target = orm.Required(str)
+    sent_time = orm.Required(datetime.datetime, default=datetime.datetime.now)
+    success = orm.Required(bool)
+    status_code = orm.Optional(int)
+
+    orm.composite_index(entry, target, sent_time)
 
 
 def setup():

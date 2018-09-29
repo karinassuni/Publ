@@ -25,6 +25,7 @@ from . import markdown
 from . import utils
 from . import cards
 from .utils import CallableProxy, TrueCallableProxy, make_slug
+from . import webmention
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -49,12 +50,12 @@ class Entry:
         record -- the index record to use as the basis
         """
 
-        self._record = record   # index record
+        self.record = record   # index record
 
     @cached_property
     def date(self):
         """ Get the display date of the entry, as an Arrow object """
-        return arrow.get(self._record.display_date)
+        return arrow.get(self.record.display_date)
 
     @cached_property
     def link(self):
@@ -107,21 +108,21 @@ class Entry:
     def category(self):
         """ Get the category this entry belongs to. """
         from .category import Category  # pylint: disable=cyclic-import
-        return Category(self._record.category)
+        return Category(self.record.category)
 
     def _link(self, *args, **kwargs):
         """ Returns a link, potentially pre-redirected """
-        if self._record.redirect_url:
-            return self._record.redirect_url
+        if self.record.redirect_url:
+            return self.record.redirect_url
 
         return self._permalink(*args, **kwargs)
 
     def _permalink(self, absolute=False, expand=True, **kwargs):
         """ Returns a canonical URL for the item """
         return flask.url_for('entry',
-                             entry_id=self._record.id,
-                             category=self._record.category if expand else None,
-                             slug_text=self._record.slug_text if expand else None,
+                             entry_id=self.record.id,
+                             category=self.record.category if expand else None,
+                             slug_text=self.record.slug_text if expand else None,
                              _external=absolute,
                              **kwargs)
 
@@ -139,7 +140,7 @@ class Entry:
         elif paging == 'week':
             args['date'] = self.date.span('week')[0].format(utils.WEEK_FORMAT)
         elif paging == 'offset' or not paging:
-            args['id'] = self._record.id
+            args['id'] = self.record.id
         else:
             raise ValueError("Unknown paging type '{}'".format(paging))
 
@@ -155,21 +156,21 @@ class Entry:
         return CallableProxy(self._title)
 
     def _title(self, markup=True, no_smartquotes=False):
-        return markdown.render_title(self._record.title, markup, no_smartquotes)
+        return markdown.render_title(self.record.title, markup, no_smartquotes)
 
     @cached_property
     def image_search_path(self):
         """ The relative image search path for this entry """
-        return [os.path.dirname(self._record.file_path)] + self.category.image_search_path
+        return [os.path.dirname(self.record.file_path)] + self.category.image_search_path
 
     @cached_property
     def _message(self):
         """ get the message payload """
-        filepath = self._record.file_path
+        filepath = self.record.file_path
         try:
             return load_message(filepath)
         except FileNotFoundError:
-            expire_record(self._record)
+            expire_record(self.record)
             return None
 
     @cached_property
@@ -182,7 +183,7 @@ class Entry:
             more = body[6:]
             body = ''
 
-        _, ext = os.path.splitext(self._record.file_path)
+        _, ext = os.path.splitext(self.record.file_path)
         is_markdown = ext == '.md'
 
         return body, more, is_markdown
@@ -255,16 +256,16 @@ class Entry:
     def __getattr__(self, name):
         """ Proxy undefined properties to the backing objects """
 
-        if hasattr(self._record, name):
-            return getattr(self._record, name)
+        if hasattr(self.record, name):
+            return getattr(self.record, name)
 
         return self._message.get(name)
 
     def _pagination_default_spec(self, kwargs):
-        category = kwargs.get('category', self._record.category)
+        category = kwargs.get('category', self.record.category)
         return {
             'category': category,
-            'recurse': kwargs.get('recurse', category != self._record.category)
+            'recurse': kwargs.get('recurse', category != self.record.category)
         }
 
     def _previous(self, **kwargs):
@@ -273,7 +274,7 @@ class Entry:
         spec.update(kwargs)
 
         query = queries.build_query(spec)
-        query = queries.where_before_entry(query, self._record)
+        query = queries.where_before_entry(query, self.record)
 
         for record in query.order_by(orm.desc(model.Entry.local_date),
                                      orm.desc(model.Entry.id))[:1]:
@@ -286,7 +287,7 @@ class Entry:
         spec.update(kwargs)
 
         query = queries.build_query(spec)
-        query = queries.where_after_entry(query, self._record)
+        query = queries.where_after_entry(query, self.record)
 
         for record in query.order_by(model.Entry.local_date,
                                      model.Entry.id)[:1]:
@@ -303,9 +304,9 @@ class Entry:
 
     def __eq__(self, other):
         if isinstance(other, int):
-            return other == self._record.id
+            return other == self.record.id
         # pylint:disable=protected-access
-        return isinstance(other, Entry) and (other is self or other._record == self._record)
+        return isinstance(other, Entry) and (other is self or other._record == self.record)
 
 
 def guess_title(basename):
@@ -446,6 +447,12 @@ def scan_file(fullpath, relpath, assign_id):
     values['utc_date'] = entry_date.to('utc').datetime
     values['local_date'] = entry_date.naive
 
+    # If this entry is or will become publicly-visible, or has been deleted,
+    # add it to the publish queue
+    values['queued'] = values['status'] in (model.PublishStatus.PUBLISHED.value,
+                                            model.PublishStatus.SCHEDULED.value,
+                                            model.PublishStatus.GONE.value)
+
     logger.debug("getting entry %s with id %d", fullpath, entry_id)
     record = model.Entry.get(id=entry_id)
     if record:
@@ -488,3 +495,22 @@ def expire_record(record):
     orm.delete(pa for pa in model.PathAlias if pa.entry == record)
     record.delete()
     orm.commit()
+
+
+@orm.db_session(immediate=True)
+def run_publish_tasks():
+    """ Run all post-publish tasks for enqueued entries """
+
+    query = orm.select(e for e in model.Entry if e.queued is True)
+
+    for record in query:
+        logger.info("Running publish tasks for entry %d", record.id)
+
+        try:
+            webmention.send_pings(Entry(record))
+        except:  # pylint:disable=broad-except
+            logger.exception(
+                "Error sending webmention pings for entry %d", record.id)
+
+        record.queued = False
+        orm.commit()

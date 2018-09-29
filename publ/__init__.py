@@ -11,6 +11,7 @@ from pony.orm import db_session
 
 from . import config, rendering, model, index, caching, view, utils
 from . import maintenance, image
+from . import entry
 
 
 class Publ(flask.Flask):
@@ -111,6 +112,10 @@ def publ(name, cfg):
         maint.register(functools.partial(image.clean_cache,
                                          config.image_cache_age),
                        config.image_cache_interval)
+
+    if config.entry_publish_interval:
+        maint.register(entry.run_publish_tasks,
+                       config.entry_publish_interval)
 
     app.before_request(maint.run)
 
