@@ -13,23 +13,31 @@ from . import entry
 from . import model
 from . import utils
 from . import category
+from . import background
+from . import config
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 ENTRY_TYPES = ['.md', '.htm', '.html']
 CATEGORY_TYPES = ['.cat', '.meta']
 
-THREAD_POOL = concurrent.futures.ThreadPoolExecutor(
-    max_workers=1,
-    thread_name_prefix="Indexer")
 
-# Get the _work_queue attribute from the pool, if any
-WORK_QUEUE = getattr(THREAD_POOL, '_work_queue', None)
+def thread_pool():
+    if not thread_pool.pool:
+        thread_pool.pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=config.max_index_threads,
+            thread_name_prefix="Indexer")
+
+        # If we can inspect the queue length, do so
+        thread_pool.queue = getattr(thread_pool.pool, '_work_queue', None)
+    return thread_pool.pool
+thread_pool.pool = None
+thread_pool.queue = None
 
 
 def queue_length():
-    """ Get the approximate length of the indexer work queue """
-    return WORK_QUEUE.qsize() if WORK_QUEUE else None
+    """ Get the approximate length of the indexer work queue, if available """
+    return thread_pool.queue.qsize() if thread_pool.queue else None
 
 
 def in_progress():
@@ -72,7 +80,7 @@ def scan_file(fullpath, relpath, assign_id):
     result = do_scan()
     if result is False and not assign_id:
         logger.info("Scheduling fixup for %s", fullpath)
-        THREAD_POOL.submit(scan_file, fullpath, relpath, True)
+        thread_pool().submit(scan_file, fullpath, relpath, True)
     elif result:
         set_fingerprint(fullpath)
 
@@ -113,7 +121,7 @@ class IndexWatchdog(watchdog.events.PatternMatchingEventHandler):
     def update_file(self, fullpath):
         """ Update a file """
         relpath = os.path.relpath(fullpath, self.content_dir)
-        THREAD_POOL.submit(scan_file, fullpath, relpath, False)
+        thread_pool().submit(scan_file, fullpath, relpath, False)
 
     def on_created(self, event):
         """ on_created handler """
@@ -167,4 +175,4 @@ def scan_index(content_dir):
             logger.exception("Got error parsing directory %s", root)
 
     for root, _, files in os.walk(content_dir, followlinks=True):
-        THREAD_POOL.submit(scan_directory, root, files)
+        thread_pool().submit(scan_directory, root, files)

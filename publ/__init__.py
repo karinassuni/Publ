@@ -10,7 +10,7 @@ import werkzeug.exceptions
 from pony.orm import db_session
 
 from . import config, rendering, model, index, caching, view, utils
-from . import maintenance, image
+from . import maintenance, image, background
 
 
 class Publ(flask.Flask):
@@ -54,7 +54,8 @@ class Publ(flask.Flask):
 
 
 def publ(name, cfg):
-    """ Create a Flask app and configure it for use with Publ """
+    """ Create a Flask app and configure it for use with Publ. See the config module
+    for a description of the config options. """
 
     config.setup(cfg)
 
@@ -99,6 +100,7 @@ def publ(name, cfg):
     )
 
     caching.init_app(app)
+    background.app = app
 
     maint = maintenance.Maintenance()
 
@@ -128,9 +130,6 @@ def publ(name, cfg):
         startup()
 
     return app
-
-
-last_scan = None  # pylint: disable=invalid-name
 
 
 def startup():
