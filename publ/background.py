@@ -26,6 +26,7 @@ def submit(fn, *args, **kwargs):
 
 
 def _context_runner(fn, *args, **kwargs):
+    logger.debug("running task %s %s %s", fn, args, kwargs)
     try:
         with app.app_context():
             fn(*args, **kwargs)

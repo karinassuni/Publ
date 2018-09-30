@@ -16,7 +16,7 @@ db = orm.Database()  # pylint: disable=invalid-name
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 # schema version; bump this number if it changes
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class GlobalConfig(db.Entity):
@@ -63,7 +63,8 @@ class Entry(db.Entity):
 
     aliases = orm.Set("PathAlias")
     pings = orm.Set("WebMentionSent")
-    queued = orm.Optional(bool, index=True)
+
+    pending_publish = orm.Optional(bool, index=True)
 
     orm.composite_index(category, entry_type, utc_date)
     orm.composite_index(category, entry_type, local_date)

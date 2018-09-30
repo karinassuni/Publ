@@ -449,9 +449,10 @@ def scan_file(fullpath, relpath, assign_id):
 
     # If this entry is or will become publicly-visible, or has been deleted,
     # add it to the publish queue
-    values['queued'] = values['status'] in (model.PublishStatus.PUBLISHED.value,
-                                            model.PublishStatus.SCHEDULED.value,
-                                            model.PublishStatus.GONE.value)
+    if values['status'] in (model.PublishStatus.PUBLISHED.value,
+                            model.PublishStatus.SCHEDULED.value,
+                            model.PublishStatus.GONE.value):
+        values['pending_publish'] = True
 
     logger.debug("getting entry %s with id %d", fullpath, entry_id)
     record = model.Entry.get(id=entry_id)
@@ -497,20 +498,26 @@ def expire_record(record):
     orm.commit()
 
 
-@orm.db_session(immediate=True)
 def run_publish_tasks():
     """ Run all post-publish tasks for enqueued entries """
 
-    query = orm.select(e for e in model.Entry if e.queued is True)
+    with orm.db_session:
+        query = queries.build_query({"future": False})
+        pending = orm.select(e.id for e in query
+                             if e.pending_publish is True)[:]
 
-    for record in query:
-        logger.info("Running publish tasks for entry %d", record.id)
-
+    for entry_id in pending:
+        logging.info("pending tasks for entry %d", entry_id)
         try:
-            webmention.send_pings(Entry(record))
+            with orm.db_session:
+                record = model.Entry.get(id=entry_id)
+                entry = Entry(record)
+
+                if config.enable_webmention:
+                    webmention.send_pings(entry)
+
+                record.set(pending_publish=False)
+                orm.commit()
         except:  # pylint:disable=broad-except
             logger.exception(
                 "Error sending webmention pings for entry %d", record.id)
-
-        record.queued = False
-        orm.commit()

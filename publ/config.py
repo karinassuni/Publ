@@ -42,6 +42,8 @@ max_worker_threads -- the maximum number of worker threads to launch for
 max_index_threads -- the maximum number of worker threads to launch for the
     content indexer. Defaults to 4.
 
+enable_webmention -- whether to send outgoing WebMentions for public, published
+    entries
 
  """
 
@@ -68,6 +70,7 @@ timezone = tz.tzlocal()
 cache = {}
 max_worker_threads = None
 max_index_threads = 4
+enable_webmention = False
 
 
 def setup(cfg):
